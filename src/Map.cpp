@@ -5,15 +5,21 @@
 #include <queue>
 #include <fstream>
 #include <random>
+#include <algorithm>
+#include <numeric>
+#include <math.h>
 
-Map::Map(unsigned int width, unsigned int height, unsigned int maxIslandCount, unsigned int seed)
+Map::Map(std::string mode, std::string filename, unsigned int width, unsigned int height, int seed)
 {
+    this->mode = mode;
+    this->filename = filename;
     this->width = width;
     this->height = height;
-    islandCount = maxIslandCount;
+    islandCount = 0;
 
-    std::srand(time(NULL));
-    this->seed = rand();
+
+
+    if(seed != -1) this->seed = seed;
 
     map = std::vector<std::vector<color> >(height, std::vector<color>(width));
 
@@ -27,17 +33,120 @@ Map::Map(unsigned int width, unsigned int height, unsigned int maxIslandCount, u
     Finalize();
 }
 
-void Map::Export(std::string filename)
+std::string Map::getName()
 {
-    std::ofstream ofs(filename, std::ios_base::out | std::ios_base::binary);
-    ofs << "P3" << '\n' << width << ' ' << height << '\n' << "255" << '\n';
+    return filename;
+}
 
-    for (unsigned int y = 0; y < height; y++)
+void Map::Export()
+{
+    if (mode == "ppm")
     {
-        for (unsigned int x = 0; x < width; x++)
+        std::ofstream ofs(filename + ".ppm", std::ios_base::out | std::ios_base::binary);
+        ofs << "P3" << '\n' << width << ' ' << height << '\n' << "255" << '\n';
+
+        for (unsigned int y = 0; y < height; y++)
         {
-            ofs << (int)map[y][x].channel[0] << ' ' << (int)map[y][x].channel[1] << ' ' << (int)map[y][x].channel[2] << '\n';
+            for (unsigned int x = 0; x < width; x++)
+            {
+                ofs << (int)map[y][x].channel[0] << ' ' << (float)map[y][x].channel[1] << ' ' << (int)map[y][x].channel[2] << '\n';
+            }
         }
+
+        for (unsigned int i = 0; i < islands.size(); i++)
+        {
+            islands[i]->Export();
+        }
+        
+        return;
+    }
+    
+    if (mode == "jgraph")
+    {
+        std::ofstream ofs(filename + ".jgr", std::ios_base::out | std::ios_base::binary);
+        int scaleFactor = 3;
+
+        // draws islands in jgraph
+        ofs << "newgraph" << "\n\n";
+
+        ofs << "xaxis min 0 max " << width << " hash 0 mhash 0 size " << (float)(scaleFactor * ((float)width / (float)height)) << '\n';
+        ofs << "yaxis min 0 max " << height << " hash 0 mhash 0 size " << scaleFactor << "\n\n";
+        ofs << "newcurve poly pcfill 0.098 0.275 0.588 marktype none linetype solid pts "
+            << "0"   << ' ' << "0 "
+            << width << ' ' << "0 "
+            << width << ' ' << height << ' '
+            << "0"   << ' ' << height << ' '
+            << "0"   << ' ' << "0 "
+            << "\n\n";
+
+        
+        std::vector<std::pair<int, int> > points;
+        for (unsigned int i = 0; i < islandCount; i++)
+        {
+            ofs << "newcurve poly pcfill 0.169 0.510 0.067 marktype none linetype solid pts " << '\n';
+
+            points = islands[i]->getRepresentativePoints();
+            for (unsigned int j = 0; j < points.size(); j++)
+            {
+                ofs << points[j].second + islands[i]->getX() << ' ' << height - points[j].first - islands[i]->getY() << " \n";
+            }
+
+            ofs << "\n\n";
+        }
+
+        // draws statistics in graph beneath islands
+        ofs << "newgraph" << '\n'
+            << "y_translate " << -1 * scaleFactor - 1 << "\n\n";
+
+        std::vector<int> sizes;
+        int maxSize = 0;
+
+        for (unsigned int i = 0; i < islandCount; i++)
+        {
+            sizes.push_back(islands[i]->getSize());
+            maxSize = std::max(sizes.back(), maxSize);
+        }
+
+        int maxSizeMagnitude = std::floor(log10(maxSize));
+        int maxSizeRounded = (maxSize / (std::pow(10, maxSizeMagnitude))) + 1;
+        maxSizeRounded = maxSizeRounded * std::pow(10, maxSizeMagnitude);
+
+        ofs << "xaxis min 0.1 max " << (float)islandCount + 0.9 << " hash 1 mhash 0 shash 0 size " << (float)(scaleFactor * ((float)width / (float)height)) << '\n'
+            << "label : Island" << "\n\n";
+
+        ofs << "yaxis min 0 max " << maxSizeRounded << " hash " << maxSizeRounded / 10 << " mhash 0 size " << scaleFactor << '\n'
+            << "label : Size of Island (pixels)" << "\n\n";
+
+        ofs << "newstring hjl vjc x 0 y " << maxSizeRounded * 1.1 << '\n'
+            << "fontsize 16 font Times-Bold : Bar Graph of Island Sizes with Mean Size" << "\n\n";
+        
+        // generate bar graph
+        float barWidth = (float)width / (float)islandCount;
+        ofs << "newcurve marktype xbar cfill 0.5 0 0 color 0.5 0 0" << '\n'
+            << "marksize 0.8 50" << '\n'
+            << "label : Generated Island Sizes" << "\n\n"
+            << "pts\n";
+
+        for (unsigned int i = 0; i < sizes.size(); i++)
+        {
+            ofs << (float)i + 1 << ' ' << sizes[i] << '\n';
+        }
+        ofs << '\n';
+
+        // draw black line on x axis to redraw over bar graph
+        ofs << "newline color 0 0 0 pts 0 0 " << (float)islandCount + 0.9 << " 0" << "\n\n";
+
+        // plot mean size on bar graph
+        float meanSize = (float)std::accumulate(sizes.begin(), sizes.end(), 0) / islandCount;
+        
+        ofs << "newcurve marktype none linetype dashed color 0 0 0 pts " << '\n'
+            << "0 " << meanSize << ' '
+            << (float)islandCount + 0.9 << ' ' << meanSize << "\n\n";
+
+        ofs << "label : Mean Island Size = " << meanSize << "\n\n";
+
+
+        return;
     }
 }
 
@@ -50,7 +159,7 @@ void Map::Generate()
     //noise is row major, consistent with other c++ standards
     noiseData = std::vector<std::vector<unsigned char> >(height, std::vector<unsigned char>(width));
 
-    int threshold = 255 * 9 / 16;
+    int threshold = 255 * 10 / 16;
     for (int y = 0; y < height; y++)
     {
         for (int x = 0; x < width; x++)
@@ -154,7 +263,7 @@ void Map::ExtractIslands()
             if (noiseData[y][x] == 255)
             {
                 islands.push_back(ExtractIslandFromPoint(x, y));
-                islands.back()->Export();
+                islandCount++;
             }
         }
     }

@@ -16,11 +16,13 @@ public:
 	void ReduceIslandSize();
 
 	std::vector<std::vector<int> >* getIslandData();
+	std::vector<std::pair<int, int> > getRepresentativePoints();
 	int getX();
 	int getY();
 	int getWidth();
 	int getHeight();
 	int getID();
+	int getSize();
 
 	void setX(int x);
 	void setY(int y);
@@ -30,11 +32,13 @@ public:
 private:
 	// stores grid of #'s indicating where in the grid the island exists.
 	std::vector<std::vector<int> > data;
+	std::vector<std::pair<int, int> > representativePoints;
 	
 	// location of top left of rectangle containing island on initial map
 	int x, maxX;
 	int y, maxY;
 	int width, height;
+	int size;
 
 	// meta info
 	int id;

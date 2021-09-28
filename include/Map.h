@@ -12,10 +12,17 @@ private:
 	struct color {
 		unsigned char channel[3];
 	};
-public:
-	Map(unsigned int width = 800, unsigned int height = 600, unsigned int maxIslandCount = 8, unsigned int seed = 127);
 
-	void Export(std::string filename = "out.ppm");
+	struct stats {
+		int meanIslandSize;
+		int islandCount;
+		float waterComposition;
+	};
+public:
+	Map(std::string mode, std::string filename, unsigned int width, unsigned int height, int seed = -1);
+
+	std::string getName();
+	void Export();
 
 private:
 	void Generate();
@@ -27,9 +34,13 @@ private:
 	Island* ExtractIslandFromPoint(int x, int y);
 
 private:
+	std::string mode;
+	std::string filename;
+
 	std::vector<Island*> islands;
 	std::vector<std::vector<unsigned char> > noiseData;
 	std::vector<std::vector<color> > map;
+	stats mapStats;
 
 	unsigned int seed;
 	unsigned int width;
