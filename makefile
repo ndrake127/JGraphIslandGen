@@ -8,6 +8,7 @@ FLAGS   = -g -c -I$(IDIR) -o
 
 all: $(OBJS)
 	$(CC) -g $(OBJS) -o $(OUT)
+	chmod u+r+x jgraph
 	./islandgen
 	./islandgen -f map1
 	./islandgen -f map2 -w 800 -h 600
