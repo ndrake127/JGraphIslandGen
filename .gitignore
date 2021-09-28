@@ -35,7 +35,7 @@ bin/
 # Visual Studio Files
 *.vcxproj*
 .vs/
-./*.sln
+*.sln
 
 # Generated Files
 *.ppm
